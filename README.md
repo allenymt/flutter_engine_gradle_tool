@@ -1,1 +1,2 @@
 # flutter_engine_gradle_tool
+Flutter Android 自定义引擎产物 ，将flutter.gradle替换掉 your_flutter_path/flutter/packages/flutter_tools/gradle下的文件即可
