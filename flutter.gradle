@@ -252,8 +252,9 @@ class FlutterPlugin implements Plugin<Project> {
         // This prevents duplicated classes when using custom build types. That is, a custom build
         // type like profile is used, and the plugin and app projects have API dependencies on the
         // embedding.
-        if (!isFlutterAppProject() || getPluginList().size() == 0 || isAndroidCustomEngine()) {
-            if (isAndroidCustomEngine()) {
+        if (!isFlutterAppProject() || getPluginList().size() == 0 || isCustomEngine()) {
+            if (isCustomEngine()) {
+//                log("addFlutterDependencies project is ${project.name} compileOnly is false")
                 apiFlutterJar(project,false)
             } else {
                 addApiDependencies(project, buildType.name,
@@ -266,7 +267,7 @@ class FlutterPlugin implements Plugin<Project> {
             platforms.add("android-x86")
             platforms.add("android-x64")
         }
-        if (!isAndroidCustomEngine()) {
+        if (!isCustomEngine()) {
             platforms.each { platform ->
                 String arch = PLATFORM_ARCH_MAP[platform].replace("-", "_")
                 // Add the `libflutter.so` dependency.
@@ -301,6 +302,7 @@ class FlutterPlugin implements Plugin<Project> {
 
     // Adds the plugin project dependency to the app project .
     private void configurePluginProject(String pluginName, String _) {
+//        log("configurePluginProject pluginName is ${pluginName}")
         Project pluginProject = project.rootProject.findProject(":$pluginName")
         if (pluginProject == null) {
             project.logger.error("Plugin project :$pluginName not found. Please update settings.gradle.")
@@ -320,6 +322,7 @@ class FlutterPlugin implements Plugin<Project> {
                 return
             }
             if (!pluginProject.hasProperty('android')) {
+//                log("pluginProject ${pluginProject.name} has no android property")
                 return
             }
             // Copy build types from the app to the plugin.
@@ -332,9 +335,14 @@ class FlutterPlugin implements Plugin<Project> {
             //
             // See https://issuetracker.google.com/139821726, and
             // https://github.com/flutter/flutter/issues/72185 for more details.
-            if (isAndroidCustomEngine()){
+            if (isCustomEngine()){
                 // 为每个plugin project添加 flutter.jar依赖
-                apiFlutterJar(pluginProject,true)
+                boolean pluginCompile = true
+                if ( project.hasProperty('pluginCompile')){
+                    pluginCompile = project.property("pluginCompile").toBoolean()
+                }
+                log("pluginProject is ${pluginProject.name}  , pluginCompile $pluginCompile")
+                apiFlutterJar(pluginProject, !pluginCompile)
                 compileOnlyPluginProject(pluginProject, buildType.name)
             }
             else{
@@ -591,14 +599,22 @@ class FlutterPlugin implements Plugin<Project> {
      * 所以需要在项目里手动引如androidx包。(可以正常情况下看下项目demo的dep，就知道要引入哪些aar了)
      * @return
      */
-    private boolean isAndroidCustomEngine() {
+    private boolean isCustomEngine() {
         boolean enableCustomEngine = false
+        Path baseEngineCachePath = Paths.get(flutterRoot.absolutePath, "bin", "cache")
+        // 主工程目录下 gradle.properties配置enableCustomEngine=true/false即可
         if (project.hasProperty("enableCustomEngine")) {
+            log("isCustomEngine property=${project.property("enableCustomEngine").toBoolean()}")
             enableCustomEngine = project.property("enableCustomEngine").toBoolean()
         }
+
+        log("isCustomEngine final=$enableCustomEngine}")
         return enableCustomEngine
     }
 
+    private boolean log(String msg) {
+        println("log-msg is ${msg}")
+    }
     /**
      * 
      * Gets the directory that contains the Flutter source code.
@@ -803,7 +819,7 @@ class FlutterPlugin implements Plugin<Project> {
                 archiveName libJar.name
                 libFlutterPlatforms.each { targetArch ->
 
-                    if (!isAndroidCustomEngine()) {
+                    if (!isCustomEngine()) {
                         return
                     }
                     // This check prevents including `libflutter.so` twice, since it's included in the base platform jar.
@@ -990,6 +1006,7 @@ class FlutterPlugin implements Plugin<Project> {
         baseJar["release"] = baseEnginePath.resolve("${basePlatformArch}-release").resolve("flutter.jar").toFile()
         // Add flutter.jar dependencies to all <buildType>Api configurations, including custom ones
         // added after applying the Flutter plugin.
+        log("currentProject is ${currentProject.name} , compileOnly is ${compileOnly}")
         currentProject.android.buildTypes.each {
             def buildMode = buildModeFor(it)
             if (compileOnly){
@@ -1040,14 +1057,20 @@ class FlutterPlugin implements Plugin<Project> {
             // 只判断implementation， api，compileOnly
             pluginProject.configurations {
                 if (containsDependency("compileOnly",it,name,group)){
+//                    println("yulun configurations compileOnly not null $pluginProject")
                     return
                 }else if (containsDependency("implementation",it,name,group)){
+//                    println("yulun configurations implementation not null $pluginProject")
                     return
                 }else if (containsDependency("api",it,name,group)){
+//                    println("yulun configurations api not null $pluginProject")
                     return
                 }else if (containsDependency("compile",it,name,group)){
+//                    println("yulun configurations compile not null $pluginProject")
                     return
                 }
+
+//                println("yulun configurations addCompileOnlyDependency $jarAPi $pluginProject")
                 addCompileOnlyDependency(pluginProject, buildTypeName, jarAPi)
             }
         }
